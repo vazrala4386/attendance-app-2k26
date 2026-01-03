@@ -35,13 +35,25 @@ body {
 
 #root {
   width: 100%;
-  max-width: 480px;
-  /* Mobile constraint */
+  max-width: none; /* Remove mobile constraint for PC */
   margin: 0 auto;
   min-height: 100vh;
   background-color: var(--background);
   position: relative;
   overflow-x: hidden;
+}
+
+/* Responsive design for different screen sizes */
+@media (max-width: 768px) {
+  #root {
+    max-width: 480px; /* Mobile constraint only on small screens */
+  }
+}
+
+@media (min-width: 769px) {
+  #root {
+    max-width: 100%; /* Full width on PC screens */
+  }
 }
 
 /* Animations */
@@ -93,6 +105,14 @@ p {
   cursor: pointer;
   transition: all 0.2s active;
   gap: 0.5rem;
+}
+
+/* Responsive button sizing */
+@media (min-width: 769px) {
+  .btn {
+    width: auto; /* Auto width on PC screens */
+    min-width: 120px;
+  }
 }
 
 .btn:active {
@@ -217,6 +237,16 @@ p {
   background: linear-gradient(to top, rgba(255, 255, 255, 1) 80%, rgba(255, 255, 255, 0));
   max-width: 480px;
   margin: 0 auto;
+}
+
+/* PC screen optimization for floating bottom */
+@media (min-width: 769px) {
+  .floating-bottom {
+    max-width: 100%;
+    position: relative;
+    background: none;
+    padding: 1rem 0;
+  }
 }
 
 /* Modal Styles */
@@ -471,4 +501,110 @@ p {
 .action-card .subtitle {
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+/* PC Screen Optimizations */
+@media (min-width: 769px) {
+  /* Optimize admin dashboard layout for PC screens */
+  .admin-dashboard-container {
+    max-width: 100%;
+    margin: 0;
+  }
+
+  /* Better grid layouts for larger screens */
+  .analytics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+  }
+
+  .file-grid {
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+  }
+
+  /* Improved modal sizing for PC */
+  .modal-content {
+    max-width: 600px;
+  }
+
+  /* Better form layouts */
+  .form-row {
+    display: flex;
+    gap: 1rem;
+    align-items: end;
+  }
+
+  .form-row .form-group {
+    flex: 1;
+    margin-bottom: 0;
+  }
+
+  /* Optimize upload form for PC */
+  .upload-form-pc {
+    max-width: 800px;
+  }
+
+  /* Better table layouts */
+  .data-table {
+    font-size: 0.9rem;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 0.75rem 1rem;
+  }
+
+  /* Sidebar improvements for PC */
+  .admin-sidebar {
+    width: 280px;
+  }
+
+  .admin-main-content {
+    padding: 2rem 3rem;
+  }
+
+  /* Card improvements */
+  .card {
+    padding: 2rem;
+  }
+
+  /* Action buttons in rows for PC */
+  .action-buttons-row {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+  }
+
+  .action-buttons-row .btn {
+    width: auto;
+    min-width: 100px;
+  }
+}
+
+/* Large screen optimizations */
+@media (min-width: 1200px) {
+  .admin-main-content {
+    padding: 2rem 4rem;
+  }
+
+  .analytics-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .file-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .upload-form-pc {
+    max-width: 900px;
+  }
+}
+
+/* Ultra-wide screen optimizations */
+@media (min-width: 1600px) {
+  .admin-main-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem 2rem;
+  }
 }
