@@ -1,15 +1,9 @@
 {
     "version": 2,
-    "builds": [
-        {
-            "src": "server.js",
-            "use": "@vercel/node"
-        }
-    ],
     "rewrites": [
         {
             "source": "/(login|register|files|attendance|attendance-status|admin|test-upload|send-email|api)(.*)",
-            "destination": "/server.js"
+            "destination": "/api/index.js"
         }
     ]
 }
