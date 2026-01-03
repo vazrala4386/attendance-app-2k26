@@ -960,24 +960,30 @@ app.post('/send-email', async (req, res) => {
     }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 Enhanced Attendance Server running at:`);
-    console.log(`   Local: http://localhost:${PORT}`);
-    console.log(`   Network: http://0.0.0.0:${PORT}`);
-    console.log(`📧 Configure your credentials in .env file`);
-    console.log(`\n👤 Login Credentials:`);
-    console.log(`   Admin: username=admin, password=admin123`);
-    console.log(`\n🎓 Student Logins (password: student123):`);
-    console.log(`   CSE Branch: username=CSE_2K26`);
-    console.log(`   AIML Branch: username=AIML_2K26`);
-    console.log(`   CSD Branch: username=CSD_2K26`);
-    console.log(`   ECE Branch: username=ECE_2K26`);
-    console.log(`   MCA Branch: username=MCA_2K26`);
-    console.log(`\n📋 System Features:`);
-    console.log(`   • All branches can mark attendance on the same files`);
-    console.log(`   • Files are completed when all 5 branches submit attendance`);
-    console.log(`   • Admin sees consolidated view of all branch activities`);
-    console.log(`   • PDF reports show ALL students data with branch segregation`);
-    console.log(`   • Excel export includes present and absent students with branches`);
-    console.log(`\n📱 Mobile App: Use your computer's IP address instead of localhost`);
-});
+// Export for Vercel
+export default app;
+
+// Only listen locally, Vercel handles this automatically
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`\n🚀 Enhanced Attendance Server running at:`);
+        console.log(`   Local: http://localhost:${PORT}`);
+        console.log(`   Network: http://0.0.0.0:${PORT}`);
+        console.log(`📧 Configure your credentials in .env file`);
+        console.log(`\n👤 Login Credentials:`);
+        console.log(`   Admin: username=admin, password=admin123`);
+        console.log(`\n🎓 Student Logins (password: student123):`);
+        console.log(`   CSE Branch: username=CSE_2K26`);
+        console.log(`   AIML Branch: username=AIML_2K26`);
+        console.log(`   CSD Branch: username=CSD_2K26`);
+        console.log(`   ECE Branch: username=ECE_2K26`);
+        console.log(`   MCA Branch: username=MCA_2K26`);
+        console.log(`\n📋 System Features:`);
+        console.log(`   • All branches can mark attendance on the same files`);
+        console.log(`   • Files are completed when all 5 branches submit attendance`);
+        console.log(`   • Admin sees consolidated view of all branch activities`);
+        console.log(`   • PDF reports show ALL students data with branch segregation`);
+        console.log(`   • Excel export includes present and absent students with branches`);
+        console.log(`\n📱 Mobile App: Use your computer's IP address instead of localhost`);
+    });
+}
