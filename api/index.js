@@ -22,8 +22,10 @@ const BUCKET_NAME = 'attendance-files';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Ensure uploads directory exists
-const uploadsDir = join(__dirname, 'uploads');
+// Ensure uploads directory exists (Use /tmp for Vercel)
+const isVercel = process.env.VERCEL === '1';
+const uploadsDir = isVercel ? join('/tmp', 'uploads') : join(__dirname, 'uploads');
+
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
