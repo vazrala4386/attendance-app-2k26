@@ -2,7 +2,7 @@
     "version": 2,
     "rewrites": [
         {
-            "source": "/(login|register|files|attendance|attendance-status|admin|test-upload|send-email|api)(.*)",
+            "source": "/(login|register|files|attendance|attendance-status|admin|test-upload|upload-file|send-email|api)(.*)",
             "destination": "/api/index.js"
         }
     ],
