@@ -105,7 +105,7 @@ class _DashboardTabState extends State<DashboardTab> {
         allowedExtensions: ['xlsx', 'xls', 'csv'],
       );
 
-      if (result != null && result.files.single.path != null) {
+      if (result != null) {
         // Prompt for Company Name
         final companyController = TextEditingController();
         final shouldUpload = await showDialog<bool>(
@@ -129,7 +129,14 @@ class _DashboardTabState extends State<DashboardTab> {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Uploading file...')));
           
           final token = Provider.of<AuthProvider>(context, listen: false).token!;
-          await ApiService().uploadFile(token, result.files.single.path!, companyController.text.trim());
+          
+          if (result.files.single.bytes != null) {
+             // Web
+             await ApiService().uploadFileBytes(token, result.files.single.bytes!, result.files.single.name, companyController.text.trim());
+          } else {
+             // Mobile
+             await ApiService().uploadFile(token, result.files.single.path!, companyController.text.trim());
+          }
           
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File uploaded successfully!')));

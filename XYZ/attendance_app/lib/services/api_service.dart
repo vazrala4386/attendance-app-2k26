@@ -50,7 +50,7 @@ class ApiService {
     }
   }
 
-  // Upload File (Admin only)
+  // Upload File (Mobile)
   Future<void> uploadFile(String token, String filePath, String companyName) async {
     var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload-file'));
     request.headers['Authorization'] = 'Bearer $token';
@@ -71,6 +71,35 @@ class ApiService {
       contentType: mimeType
     ));
 
+    await _sendRequest(request);
+  }
+
+  // Upload File (Web)
+  Future<void> uploadFileBytes(String token, List<int> fileBytes, String filename, String companyName) async {
+    var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/upload-file'));
+    request.headers['Authorization'] = 'Bearer $token';
+    request.fields['company_name'] = companyName;
+
+    MediaType? mimeType;
+    if (filename.endsWith('.xlsx')) {
+        mimeType = MediaType('application', 'vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    } else if (filename.endsWith('.csv')) {
+        mimeType = MediaType('text', 'csv');
+    } else {
+        mimeType = MediaType('application', 'octet-stream');
+    }
+
+    request.files.add(http.MultipartFile.fromBytes(
+      'file', 
+      fileBytes,
+      filename: filename,
+      contentType: mimeType
+    ));
+
+    await _sendRequest(request);
+  }
+
+  Future<void> _sendRequest(http.MultipartRequest request) async {
     var response = await request.send();
     if (response.statusCode != 200) {
       final respStr = await response.stream.bytesToString();
