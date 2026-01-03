@@ -38,18 +38,14 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 console.log('Using Supabase for database');
 
 // Multer configuration for file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadsDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + '-' + file.originalname);
-    }
-});
+// Multer configuration for file uploads (Use MemoryStorage for Serverless)
+const storage = multer.memoryStorage();
 
 const upload = multer({
     storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024 // 10MB limit
+    },
     fileFilter: (req, file, cb) => {
         console.log('File filter check:', {
             mimetype: file.mimetype,
@@ -201,6 +197,7 @@ app.get('/test-upload', authenticateToken, requireAdmin, (req, res) => {
 });
 
 // Upload file (Admin only)
+// Upload file (Admin only)
 app.post('/upload-file', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
     console.log('Upload request received');
 
@@ -210,23 +207,19 @@ app.post('/upload-file', authenticateToken, requireAdmin, upload.single('file'),
 
     const { company_name } = req.body;
     if (!company_name) {
-        // Cleanup local file
-        fs.unlinkSync(req.file.path);
         return res.status(400).json({ error: 'Company name is required' });
     }
 
     try {
-        // 1. Upload to Supabase Storage
-        const fileContent = fs.readFileSync(req.file.path);
+        const uniqueFilename = Date.now() + '-' + Math.round(Math.random() * 1E9) + '-' + req.file.originalname;
+
+        // 1. Upload to Supabase Storage (From Memory)
         const { data: uploadData, error: uploadError } = await supabase.storage
             .from(BUCKET_NAME)
-            .upload(req.file.filename, fileContent, {
+            .upload(uniqueFilename, req.file.buffer, {
                 contentType: req.file.mimetype,
                 upsert: true
             });
-
-        // Cleanup local file immediately
-        fs.unlinkSync(req.file.path);
 
         if (uploadError) {
             console.error('Supabase Storage Error:', uploadError);
@@ -236,7 +229,7 @@ app.post('/upload-file', authenticateToken, requireAdmin, upload.single('file'),
         // 2. Save metadata to Database
         const { data, error: dbError } = await supabase.from('files').insert([
             {
-                filename: req.file.filename,
+                filename: uniqueFilename, // Use the generated filename
                 original_name: req.file.originalname,
                 branch: 'ALL',
                 company_name: company_name,
@@ -246,18 +239,18 @@ app.post('/upload-file', authenticateToken, requireAdmin, upload.single('file'),
 
         if (dbError) {
             console.error('Database error:', dbError);
+            // Optional: try to delete the uploaded file if DB fails
             return res.status(500).json({ error: 'Database error: ' + dbError.message });
         }
 
         res.json({
             message: 'File uploaded successfully',
             fileId: data.id,
-            filename: req.file.filename,
+            filename: uniqueFilename,
             originalName: req.file.originalname,
             companyName: company_name
         });
     } catch (err) {
-        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
         console.error('Upload process error:', err);
         res.status(500).json({ error: 'Upload failed: ' + err.message });
     }
