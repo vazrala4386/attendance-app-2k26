@@ -960,10 +960,6 @@ app.post('/send-email', async (req, res) => {
     }
 });
 
-// Export for Vercel
-export default app;
-
-// Only listen locally, Vercel handles this automatically
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`\n🚀 Enhanced Attendance Server running at:`);
@@ -987,3 +983,5 @@ if (process.env.NODE_ENV !== 'production') {
         console.log(`\n📱 Mobile App: Use your computer's IP address instead of localhost`);
     });
 }
+
+export default app;
