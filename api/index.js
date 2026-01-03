@@ -270,6 +270,9 @@ const getNormalizedBranch = (rawBranch) => {
     if (branch.includes('AIML') ||
         branch.includes('AI&ML') ||
         branch.includes('AI & ML') ||
+        branch.includes('AI-ML') ||
+        branch.includes('CSM') ||
+        branch.includes('MACHINE LEARNING') ||
         (branch.includes('ARTIFICIAL') && branch.includes('INTELLIGENCE')) ||
         (branch.includes('CSE') && (branch.includes('AI') || branch.includes('ML')))) {
         return 'AIML';
