@@ -7,6 +7,7 @@ import '../models.dart';
 import '../services/api_service.dart';
 import 'file_detail_screen.dart';
 import 'company_detail_screen.dart';
+import 'admin_settings_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -24,6 +25,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
         actions: [
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AdminSettingsScreen()),
+            ),
+            icon: const Icon(Icons.settings),
+            tooltip: 'Settings',
+          ),
           IconButton(
             onPressed: () => Provider.of<AuthProvider>(context, listen: false).logout(),
             icon: const Icon(Icons.logout),
@@ -562,11 +571,13 @@ class _UsersTabState extends State<UsersTab> {
                 leading: CircleAvatar(child: Text(user.username[0].toUpperCase())),
                 title: Text(user.username),
                 subtitle: Text('Role: ${user.role}'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.lock_reset),
-                  onPressed: () => _resetPassword(user),
-                  tooltip: 'Reset Password',
-                ),
+                trailing: user.role == 'admin' 
+                  ? const Chip(label: Text('Protected', style: TextStyle(fontSize: 10))) 
+                  : IconButton(
+                      icon: const Icon(Icons.lock_reset),
+                      onPressed: () => _resetPassword(user),
+                      tooltip: 'Reset Password',
+                    ),
               );
             },
           ),

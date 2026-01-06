@@ -15,12 +15,16 @@ class _LoginScreenState extends State<LoginScreen> {
   String _loginType = ''; // '', 'admin', 'student'
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  String? _selectedBranch;
+  String? _selectedGender;
 
   void _selectLoginType(String type) {
     setState(() {
       _loginType = type;
       _usernameController.clear();
       _passwordController.clear();
+      _selectedBranch = null;
+      _selectedGender = null;
       
       if (type == 'admin') {
         _usernameController.text = 'admin';
@@ -30,19 +34,24 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  void _setBranchLogin(String username) {
-    setState(() {
-      _usernameController.text = username;
-    });
+  void _updateStudentLogin() {
+    if (_selectedBranch != null && _selectedGender != null) {
+      _usernameController.text = "${_selectedBranch}_${_selectedGender!.toUpperCase()}_2K26";
+    } else {
+      _usernameController.clear();
+    }
+    setState(() {});
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     
-    // For student login, ensure a branch is selected
-    if (_loginType == 'student' && _usernameController.text.isEmpty) {
-      Fluttertoast.showToast(msg: "Please select a branch");
-      return;
+    // For student login, ensure user and pass are set
+    if (_loginType == 'student') {
+       if (_usernameController.text.isEmpty) {
+          Fluttertoast.showToast(msg: "Please select both Branch and Gender");
+          return;
+       }
     }
 
     try {
@@ -165,13 +174,31 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                        if (_loginType == 'student') ...[
-                        const Text("Select Your Branch", style: TextStyle(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-                        _buildBranchOption('CSE_2K26', 'CSE', Colors.indigo),
-                        _buildBranchOption('AIML_2K26', 'AIML', Colors.deepPurple),
-                        _buildBranchOption('CSD_2K26', 'CSD', Colors.cyan),
-                        _buildBranchOption('ECE_2K26', 'ECE', Colors.teal),
-                        _buildBranchOption('MCA_2K26', 'MCA', Colors.amber),
+                        const Text("Select Branch", style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            _buildSelectionChip('CSE', Colors.indigo, isGender: false),
+                            _buildSelectionChip('AIML', Colors.deepPurple, isGender: false),
+                            _buildSelectionChip('CSD', Colors.cyan, isGender: false),
+                            _buildSelectionChip('ECE', Colors.teal, isGender: false),
+                            _buildSelectionChip('MCA', Colors.amber, isGender: false),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        const Text("Select Gender", style: TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildSelectionChip('Male', Colors.blue, isGender: true),
+                            const SizedBox(width: 20),
+                            _buildSelectionChip('Female', Colors.pink, isGender: true),
+                          ],
+                        ),
                         const SizedBox(height: 20),
                       ],
                       if (_loginType == 'admin')
@@ -225,31 +252,32 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
   
-  Widget _buildBranchOption(String login, String label, Color color) {
-    final isSelected = _usernameController.text == login;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: InkWell(
-        onTap: () => _setBranchLogin(login),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          decoration: BoxDecoration(
-            color: isSelected ? color : Colors.white,
-            border: Border.all(color: color, width: 2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '$label Branch',
-                style: TextStyle(
-                  color: isSelected ? Colors.white : color,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (isSelected) const Icon(Icons.check, color: Colors.white, size: 20),
-            ],
+  Widget _buildSelectionChip(String label, Color color, {required bool isGender}) {
+    final isSelected = isGender ? _selectedGender == label : _selectedBranch == label;
+    
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (isGender) {
+            _selectedGender = label;
+          } else {
+            _selectedBranch = label;
+          }
+          _updateStudentLogin();
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.white,
+          border: Border.all(color: color, width: 2),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : color,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),

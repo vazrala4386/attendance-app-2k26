@@ -9,7 +9,10 @@ import 'package:printing/printing.dart';
 import 'package:file_picker/file_picker.dart';
 import '../models.dart';
 import '../providers/auth_provider.dart';
+import 'dart:io';
+import 'package:excel/excel.dart' hide Border;
 import '../services/api_service.dart';
+import 'attendance_marking_screen.dart';
 
 class FileDetailScreen extends StatefulWidget {
   final AttendanceFile file;
@@ -261,14 +264,123 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
           style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
         ),
         const SizedBox(height: 10),
+        ElevatedButton.icon(
+          onPressed: () => _exportToExcel(data), 
+          icon: const Icon(Icons.table_view), // Excel icon substitute
+          label: const Text('Download Excel Report'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.all(16),
+            backgroundColor: Colors.green.shade700,
+            foregroundColor: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const SizedBox(height: 10),
         OutlinedButton.icon(
           onPressed: _emailReport, 
           icon: const Icon(Icons.email),
           label: const Text('Email PDF Report'),
           style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
         ),
+        const SizedBox(height: 10),
+        ElevatedButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AttendanceMarkingScreen(file: widget.file, isAdminMode: true),
+              ),
+            ).then((_) {
+               // Refresh data when returning from modification
+               setState(() => _reportData = null); // Force reload
+            });
+          },
+          icon: const Icon(Icons.edit),
+          label: const Text('Modify Attendance'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.all(16),
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+          ),
+        ),
       ],
     );
+  }
+
+  Future<void> _exportToExcel(Map<String, dynamic> data) async {
+    setState(() => _isLoading = true);
+    try {
+      final records = (data['records'] as List).map((e) => e as Map<String, dynamic>).toList();
+      
+      final excel = Excel.createExcel();
+      final Sheet sheet = excel['Attendance Report'];
+      
+      // Add Header
+      sheet.appendRow([
+        TextCellValue('Roll Number'), 
+        TextCellValue('Name'), 
+        TextCellValue('Branch'), 
+        TextCellValue('Status')
+      ]);
+
+      // Add Data
+      for (var row in records) {
+        sheet.appendRow([
+          TextCellValue(row['student_roll']?.toString() ?? ''),
+          TextCellValue(row['student_name']?.toString() ?? ''),
+          TextCellValue(row['student_branch']?.toString() ?? ''),
+          TextCellValue(row['status']?.toString().toUpperCase() ?? '')
+        ]);
+      }
+
+      // Save
+      final fileBytes = excel.save();
+      
+      if (fileBytes != null) {
+        // Use file_picker to save? Or path_provider?
+        // Since we are likely on Mobile/Desktop, let's use a standard file saver approach 
+        // OR simply share/save to downloads.
+        // For simplicity and cross-platform compatibility without complex permission handling,
+        // we can try to save to Downloads or share it (if on mobile).
+        
+        // For now, let's look at saving to temporary directory and sharing/opening, 
+        // or just writing to downloads if possible.
+        
+        // However, printing package is for PDF.
+        // We can just dump it to a file.
+        
+        String? outputFile = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save Excel Report',
+          fileName: 'Report_${widget.file.companyName}.xlsx',
+          type: FileType.custom,
+          allowedExtensions: ['xlsx'],
+          bytes: Uint8List.fromList(fileBytes), // FilePicker expects Uint8List? 
+          // Actually saveFile takes bytes? No, it takes output path usually or returns path.
+          // FilePicker.saveFile returns String? (path).
+        );
+
+        if (outputFile != null) {
+           // We need to write bytes to this path manually if saveFile doesn't do it automatically for bytes (it usually doesn't, it just gives path)
+           // WAIT: FilePicker.platform.saveFile just opens a dialog and returns a path. 
+           // We have to write the file ourselves.
+           
+           final fileX = File(outputFile);
+           await fileX.writeAsBytes(fileBytes);
+           
+           if (mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Excel saved to $outputFile')));
+             // Optionally open it?
+           }
+        }
+      }
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error creating Excel: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Widget _buildStatCircle(String label, int count, String pct, Color color) {

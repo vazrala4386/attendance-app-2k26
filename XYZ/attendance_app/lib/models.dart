@@ -76,6 +76,7 @@ class Student {
   final String branch;
   final String normalizedBranch;
   final String mobile;
+  final String gender;
   String status;
 
   Student({
@@ -85,6 +86,7 @@ class Student {
     required this.branch,
     required this.mobile,
     this.normalizedBranch = 'UNKNOWN',
+    this.gender = 'unknown',
     this.status = 'absent',
   });
 
@@ -96,6 +98,7 @@ class Student {
       branch: json['branch'],
       normalizedBranch: json['normalized_branch'] ?? 'UNKNOWN',
       mobile: json['mobile'].toString(),
+      gender: json['gender'] ?? 'unknown',
       status: json['status'] ?? 'absent',
     );
   }
@@ -108,6 +111,7 @@ class Student {
       'branch': branch,
       'normalized_branch': normalizedBranch,
       'mobile': mobile,
+      'gender': gender,
       'status': status,
     };
   }

@@ -35,6 +35,7 @@ CREATE TABLE attendance_records (
     student_name TEXT NOT NULL,
     student_roll TEXT NOT NULL,
     student_branch TEXT NOT NULL,
+    student_gender TEXT,
     status TEXT NOT NULL CHECK(status IN ('present', 'absent')),
     marked_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -50,38 +51,78 @@ VALUES (
     );
 -- Password 'student123'
 INSERT INTO users (username, password, role, branch, email)
-VALUES (
-        'CSE_2K26',
+VALUES -- CSE
+    (
+        'CSE_MALE_2K26',
         '$2b$10$dU3Ayq7ws3vquHCX3lJUF.3tma.PPhUPYqNm7iMmbpRGHGunndDs6',
         'student',
         'CSE',
-        'cse2k26@example.com'
+        'cse_male@example.com'
     ),
     (
-        'AIML_2K26',
+        'CSE_FEMALE_2K26',
+        '$2b$10$dU3Ayq7ws3vquHCX3lJUF.3tma.PPhUPYqNm7iMmbpRGHGunndDs6',
+        'student',
+        'CSE',
+        'cse_female@example.com'
+    ),
+    -- AIML
+    (
+        'AIML_MALE_2K26',
         '$2b$10$dU3Ayq7ws3vquHCX3lJUF.3tma.PPhUPYqNm7iMmbpRGHGunndDs6',
         'student',
         'AIML',
-        'aiml2k26@example.com'
+        'aiml_male@example.com'
     ),
     (
-        'CSD_2K26',
+        'AIML_FEMALE_2K26',
+        '$2b$10$dU3Ayq7ws3vquHCX3lJUF.3tma.PPhUPYqNm7iMmbpRGHGunndDs6',
+        'student',
+        'AIML',
+        'aiml_female@example.com'
+    ),
+    -- CSD
+    (
+        'CSD_MALE_2K26',
         '$2b$10$dU3Ayq7ws3vquHCX3lJUF.3tma.PPhUPYqNm7iMmbpRGHGunndDs6',
         'student',
         'CSD',
-        'csd2k26@example.com'
+        'csd_male@example.com'
     ),
     (
-        'ECE_2K26',
+        'CSD_FEMALE_2K26',
+        '$2b$10$dU3Ayq7ws3vquHCX3lJUF.3tma.PPhUPYqNm7iMmbpRGHGunndDs6',
+        'student',
+        'CSD',
+        'csd_female@example.com'
+    ),
+    -- ECE
+    (
+        'ECE_MALE_2K26',
         '$2b$10$dU3Ayq7ws3vquHCX3lJUF.3tma.PPhUPYqNm7iMmbpRGHGunndDs6',
         'student',
         'ECE',
-        'ece2k26@example.com'
+        'ece_male@example.com'
     ),
     (
-        'MCA_2K26',
+        'ECE_FEMALE_2K26',
+        '$2b$10$dU3Ayq7ws3vquHCX3lJUF.3tma.PPhUPYqNm7iMmbpRGHGunndDs6',
+        'student',
+        'ECE',
+        'ece_female@example.com'
+    ),
+    -- MCA
+    (
+        'MCA_MALE_2K26',
         '$2b$10$dU3Ayq7ws3vquHCX3lJUF.3tma.PPhUPYqNm7iMmbpRGHGunndDs6',
         'student',
         'MCA',
-        'mca2k26@example.com'
+        'mca_male@example.com'
+    ),
+    (
+        'MCA_FEMALE_2K26',
+        '$2b$10$dU3Ayq7ws3vquHCX3lJUF.3tma.PPhUPYqNm7iMmbpRGHGunndDs6',
+        'student',
+        'MCA',
+        'mca_female@example.com'
     );

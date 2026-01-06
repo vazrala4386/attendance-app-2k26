@@ -129,12 +129,18 @@ app.post('/login', (req, res) => {
 
             console.log(`Login successful for user: ${username}`);
 
+            // Detect Gender from Username
+            let gender = null;
+            if (user.username.includes('_MALE_')) gender = 'Male';
+            else if (user.username.includes('_FEMALE_')) gender = 'Female';
+
             const token = jwt.sign(
                 {
                     id: user.id,
                     username: user.username,
                     role: user.role,
-                    branch: user.branch
+                    branch: user.branch,
+                    gender: gender
                 },
                 JWT_SECRET,
                 { expiresIn: '24h' }
@@ -147,7 +153,8 @@ app.post('/login', (req, res) => {
                     username: user.username,
                     role: user.role,
                     branch: user.branch,
-                    email: user.email
+                    email: user.email,
+                    gender: gender
                 }
             });
         });
@@ -422,6 +429,7 @@ app.get('/files/:id/contents', authenticateToken, async (req, res) => {
         const rollIndex = getIndex(['roll', 'id', 'reg', 'usn']);
         const branchIndex = getIndex(['branch', 'dept', 'department', 'stream']);
         const mobileIndex = getIndex(['mobile', 'phone', 'contact']);
+        const genderIndex = getIndex(['gender', 'sex', 'm/f']);
 
         if (nameIndex === -1) {
             return res.status(400).json({ error: "Could not find a 'Name' column" });
@@ -439,6 +447,7 @@ app.get('/files/:id/contents', authenticateToken, async (req, res) => {
                     branch: rawBranch,
                     normalized_branch: getNormalizedBranch(rawBranch),
                     mobile: mobileIndex !== -1 ? row[mobileIndex] : 'N/A',
+                    gender: genderIndex !== -1 ? (row[genderIndex] || '').toString().toLowerCase().trim() : 'unknown',
                     status: 'absent'
                 };
             });
@@ -446,6 +455,27 @@ app.get('/files/:id/contents', authenticateToken, async (req, res) => {
         if (req.user.role === 'student') {
             const userBranch = req.user.branch;
             students = students.filter(student => student.normalized_branch === userBranch);
+
+            // Gender Segregation
+            if (req.user.gender) {
+                // User Gender: 'Male' or 'Female' (from login token)
+                const requiredGender = req.user.gender.toLowerCase(); // 'male' or 'female'
+
+                students = students.filter(student => {
+                    // Normalize student gender from file
+                    const g = student.gender.toLowerCase().trim();
+
+                    // Logic for Male
+                    if (requiredGender === 'male') {
+                        return g === 'male' || g === 'm' || g === 'boy' || g === 'man';
+                    }
+                    // Logic for Female
+                    if (requiredGender === 'female') {
+                        return g === 'female' || g === 'f' || g === 'girl' || g === 'woman';
+                    }
+                    return false;
+                });
+            }
         }
 
         res.json(students);
@@ -513,10 +543,11 @@ app.get('/attendance-status/:fileId', authenticateToken, async (req, res) => {
 
 // Attendance Management Routes
 
-// Save attendance (Students only)
+// Save attendance (Students and Admin)
 app.post('/attendance/:fileId', authenticateToken, async (req, res) => {
-    if (req.user.role !== 'student') {
-        return res.status(403).json({ error: 'Only students can mark attendance' });
+    // Allow Student OR Admin
+    if (req.user.role !== 'student' && req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Permission denied' });
     }
 
     const fileId = req.params.fileId;
@@ -530,37 +561,61 @@ app.post('/attendance/:fileId', authenticateToken, async (req, res) => {
         const { data: file, error: fileError } = await supabase.from('files').select('*').eq('id', fileId).single();
         if (fileError || !file) return res.status(404).json({ error: 'File not found' });
 
-        const recordsToSave = attendanceData.filter(r => {
-            const branch = r.normalized_branch || getNormalizedBranch(r.branch);
-            return branch === req.user.branch;
-        });
+        let recordsToSave = [];
 
-        if (recordsToSave.length === 0) {
-            return res.json({
-                message: 'No relevant records to save for your branch.',
-                branch: req.user.branch,
-                fileRemoved: true
+        if (req.user.role === 'admin') {
+            // Admin saves ALL sent records matchin valid columns
+            recordsToSave = attendanceData;
+        } else {
+            // Students only save their branch
+            recordsToSave = attendanceData.filter(r => {
+                const branch = r.normalized_branch || getNormalizedBranch(r.branch);
+                return branch === req.user.branch;
             });
         }
 
-        // Delete existing records for this student and file
-        await supabase.from('attendance_records').delete().eq('file_id', fileId).eq('student_id', req.user.id);
+        if (recordsToSave.length === 0) {
+            return res.json({
+                message: 'No relevant records to save.',
+                branch: req.user.branch || 'ALL',
+                fileRemoved: false
+            });
+        }
 
-        // Bulk insert records
-        const { error: insertError } = await supabase.from('attendance_records').insert(
-            recordsToSave.map(record => ({
-                file_id: fileId,
-                student_id: req.user.id,
-                student_name: record.name,
-                student_roll: record.roll,
-                student_branch: req.user.branch,
-                status: record.status
-            }))
-        );
+        // Delete Strategy
+        if (req.user.role === 'admin') {
+            // Admin overwrites ALL records for this file (simplest way to ensure consistency)
+            await supabase.from('attendance_records').delete().eq('file_id', fileId);
+        } else {
+            // Student: Delete existing records for this student and file
+            await supabase.from('attendance_records').delete().eq('file_id', fileId).eq('student_id', req.user.id);
+        }
 
-        if (insertError) throw insertError;
+        // Bulk insert records in batches to avoid payload issues
+        const recordsPayload = recordsToSave.map(record => ({
+            file_id: fileId,
+            student_id: req.user.id, // Marked by (Admin or Student)
+            student_name: record.name,
+            student_roll: record.roll,
+            student_branch: req.user.role === 'admin'
+                ? (record.normalized_branch || getNormalizedBranch(record.branch))
+                : req.user.branch,
+            student_gender: record.gender,
+            status: record.status
+        }));
 
-        // Check completion
+        // Batch Insert
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < recordsPayload.length; i += BATCH_SIZE) {
+            const batch = recordsPayload.slice(i, i + BATCH_SIZE);
+            const { error: insertError } = await supabase.from('attendance_records').insert(batch);
+            if (insertError) {
+                console.error('Batch insert error:', insertError);
+                throw insertError;
+            }
+        }
+
+        // Check completion (Update is_completed if enough branches submitted)
         const { data: branches, error: branchError } = await supabase
             .from('attendance_records')
             .select('student_branch')
@@ -574,8 +629,8 @@ app.post('/attendance/:fileId', authenticateToken, async (req, res) => {
         }
 
         res.json({
-            message: `Attendance saved successfully for ${req.user.branch}`,
-            branch: req.user.branch,
+            message: `Attendance saved successfully by ${req.user.username}`,
+            branch: req.user.branch || 'ALL',
             recordsSaved: recordsToSave.length,
             fileRemoved: true
         });

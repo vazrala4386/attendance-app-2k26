@@ -103,11 +103,13 @@ class ApiService {
     var response = await request.send();
     if (response.statusCode != 200) {
       final respStr = await response.stream.bytesToString();
+      print("SERVER ERROR BODY: $respStr"); // Log to console
       try {
         final json = jsonDecode(respStr);
-        throw Exception(json['error'] ?? 'Upload failed');
+        throw Exception(json['error'] ?? 'Upload failed with status ${response.statusCode}');
       } catch (e) {
-        throw Exception('Upload failed: ${response.statusCode}');
+        // If JSON parse fails, throw the raw string to see what happened
+        throw Exception('Upload failed (${response.statusCode}): $respStr');
       }
     }
   }

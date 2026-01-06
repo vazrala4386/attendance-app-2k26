@@ -7,14 +7,16 @@ import '../providers/auth_provider.dart';
 
 class AttendanceMarkingScreen extends StatefulWidget {
   final AttendanceFile file;
+  final bool isAdminMode;
 
-  const AttendanceMarkingScreen({super.key, required this.file});
+  const AttendanceMarkingScreen({super.key, required this.file, this.isAdminMode = false});
 
   @override
   State<AttendanceMarkingScreen> createState() => _AttendanceMarkingScreenState();
 }
 
 class _AttendanceMarkingScreenState extends State<AttendanceMarkingScreen> {
+  // ... (previous variables)
   List<Student> _students = [];
   List<Student> _filteredStudents = [];
   bool _isLoading = true;
@@ -33,22 +35,23 @@ class _AttendanceMarkingScreenState extends State<AttendanceMarkingScreen> {
     try {
       final token = Provider.of<AuthProvider>(context, listen: false).token!;
       final api = ApiService();
+      final user = Provider.of<AuthProvider>(context, listen: false).user!;
 
-      // 1. Get Students from File Content (via Server Endpoint)
+      // 1. Get Students from File Content
       final students = await api.getFileContents(widget.file.id, token);
       
-      // 2. Get Existing Attendance (if any)
+      // 2. Get Existing Attendance
       final existingRecords = await api.getExistingAttendance(widget.file.id, token);
 
       // 3. Merge Data
       if (existingRecords.isNotEmpty) {
-        final userBranch = Provider.of<AuthProvider>(context, listen: false).user!.branch;
-        
-        // Filter records for this branch
-        final branchRecords = existingRecords.where((r) => r['student_branch'] == userBranch).toList();
+        // If Admin, use ALL records. If Student, filter by their branch.
+        final relevantRecords = widget.isAdminMode 
+            ? existingRecords 
+            : existingRecords.where((r) => r['student_branch'] == user.branch).toList();
         
         for (var student in students) {
-          final record = branchRecords.firstWhere(
+          final record = relevantRecords.firstWhere(
             (r) => r['student_roll'].toString() == student.roll.toString(),
             orElse: () => {},
           );
@@ -57,11 +60,18 @@ class _AttendanceMarkingScreenState extends State<AttendanceMarkingScreen> {
             student.status = record['status'];
           }
         }
+      } 
+      
+      // 4. Initial Filter for Display (Students only see their branch)
+      // Admins see everything by default
+      List<Student> displayStudents = students;
+      if (!widget.isAdminMode) {
+         displayStudents = students.where((s) => s.normalizedBranch == user.branch).toList();
       }
 
       setState(() {
-        _students = students;
-        _filteredStudents = students;
+        _students = displayStudents;
+        _filteredStudents = displayStudents;
         _isLoading = false;
       });
     } catch (e) {
