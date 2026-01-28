@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -102,7 +101,6 @@ class _DashboardTabState extends State<DashboardTab> {
       if (mounted) {
         setState(() => _isLoading = false);
         // Use a less intrusive error reporting for refresh
-        print("Error refreshing data: $e");
       }
     }
   }
@@ -115,6 +113,7 @@ class _DashboardTabState extends State<DashboardTab> {
       );
 
       if (result != null) {
+        if (!mounted) return;
         // Prompt for Company Name
         final companyController = TextEditingController();
         final shouldUpload = await showDialog<bool>(
@@ -226,7 +225,7 @@ class _DashboardTabState extends State<DashboardTab> {
                   );
                 },
               ),
-            )).toList(),
+            )),
         ],
       ),
     );
@@ -242,7 +241,9 @@ class _DashboardTabState extends State<DashboardTab> {
         if (_analytics![key] is List && (_analytics![key] as List).isNotEmpty) {
            return (_analytics![key] as List)[0]['count'] ?? 0;
         }
-      } catch (e) { print(e); }
+      } catch (e) {
+        // Ignored
+      }
       return 0;
     }
 
@@ -268,9 +269,9 @@ class _DashboardTabState extends State<DashboardTab> {
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     return Container(
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(

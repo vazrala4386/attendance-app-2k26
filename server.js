@@ -208,68 +208,7 @@ app.get('/test-upload', authenticateToken, requireAdmin, (req, res) => {
     });
 });
 
-// Upload file (Admin only)
-app.post('/upload-file', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
-    console.log('Upload request received');
 
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const { company_name } = req.body;
-    if (!company_name) {
-        // Cleanup local file
-        fs.unlinkSync(req.file.path);
-        return res.status(400).json({ error: 'Company name is required' });
-    }
-
-    try {
-        // 1. Upload to Supabase Storage
-        const fileContent = fs.readFileSync(req.file.path);
-        const { data: uploadData, error: uploadError } = await supabase.storage
-            .from(BUCKET_NAME)
-            .upload(req.file.filename, fileContent, {
-                contentType: req.file.mimetype,
-                upsert: true
-            });
-
-        // Cleanup local file immediately
-        fs.unlinkSync(req.file.path);
-
-        if (uploadError) {
-            console.error('Supabase Storage Error:', uploadError);
-            return res.status(500).json({ error: 'Storage error: ' + uploadError.message });
-        }
-
-        // 2. Save metadata to Database
-        const { data, error: dbError } = await supabase.from('files').insert([
-            {
-                filename: req.file.filename,
-                original_name: req.file.originalname,
-                branch: 'ALL',
-                company_name: company_name,
-                uploaded_by: req.user.id
-            }
-        ]).select().single();
-
-        if (dbError) {
-            console.error('Database error:', dbError);
-            return res.status(500).json({ error: 'Database error: ' + dbError.message });
-        }
-
-        res.json({
-            message: 'File uploaded successfully',
-            fileId: data.id,
-            filename: req.file.filename,
-            originalName: req.file.originalname,
-            companyName: company_name
-        });
-    } catch (err) {
-        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        console.error('Upload process error:', err);
-        res.status(500).json({ error: 'Upload failed: ' + err.message });
-    }
-});
 
 // Helper: Standard Branches
 const ALL_BRANCHES = ['CSE', 'AIML', 'CSD', 'ECE', 'MCA'];
@@ -319,6 +258,119 @@ const getNormalizedBranch = (rawBranch) => {
     return 'UNKNOWN'; // Or keep original if needed, but normalizing helps
 };
 
+// Helper: Analyze Headers and Find Columns
+const analyzeHeaders = (data) => {
+    const headers = data[0] || [];
+    const lowerHeaders = headers.map(h => (h || '').toString().toLowerCase());
+
+    const getIndex = (keywords) => lowerHeaders.findIndex(h => keywords.some(k => h.includes(k)));
+
+    return {
+        nameIndex: getIndex(['name', 'student', 'employee']),
+        rollIndex: getIndex(['roll', 'id', 'reg', 'usn']),
+        branchIndex: getIndex(['branch', 'dept', 'department', 'stream']),
+        mobileIndex: getIndex(['mobile', 'phone', 'contact']),
+        genderIndex: getIndex(['gender', 'sex', 'm/f'])
+    };
+};
+
+// Upload file (Admin only)
+app.post('/upload-file', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
+    console.log('Upload request received');
+
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const { company_name } = req.body;
+    if (!company_name) {
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'Company name is required' });
+    }
+
+    try {
+        const fileContent = fs.readFileSync(req.file.path);
+
+        // --- 1. EXTRACT BRANCHES FROM FILE CONTENT ---
+        let targetBranches = 'ALL';
+        try {
+            const workbook = XLSX.read(fileContent, { type: 'buffer' });
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+            if (data.length > 1) {
+                const { branchIndex } = analyzeHeaders(data);
+                if (branchIndex !== -1) {
+                    const rawBranches = new Set();
+                    // Scan first 500 rows to be safe/fast
+                    data.slice(1, 500).forEach(row => {
+                        if (row[branchIndex]) {
+                            const norm = getNormalizedBranch(row[branchIndex]);
+                            if (norm !== 'UNKNOWN') rawBranches.add(norm);
+                        }
+                    });
+
+                    if (rawBranches.size > 0) {
+                        targetBranches = Array.from(rawBranches).join(',');
+                    }
+                }
+            }
+            console.log(`Extracted Target Branches: ${targetBranches}`);
+        } catch (parseErr) {
+            console.warn('Could not parse file for branches, defaulting to ALL:', parseErr.message);
+        }
+
+        // --- 2. UPLOAD TO STORAGE ---
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from(BUCKET_NAME)
+            .upload(req.file.filename, fileContent, {
+                contentType: req.file.mimetype,
+                upsert: true
+            });
+
+        // Cleanup local file
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+
+        if (uploadError) {
+            console.error('Supabase Storage Error:', uploadError);
+            return res.status(500).json({ error: 'Storage error: ' + uploadError.message });
+        }
+
+        // --- 3. SAVE TO DB ---
+        const { data, error: dbError } = await supabase.from('files').insert([
+            {
+                filename: req.file.filename,
+                original_name: req.file.originalname,
+                branch: targetBranches, // SAVING EXTRACTED BRANCHES HERE
+                company_name: company_name,
+                uploaded_by: req.user.id
+            }
+        ]).select().single();
+
+        if (dbError) {
+            console.error('Database error:', dbError);
+            return res.status(500).json({ error: 'Database error: ' + dbError.message });
+        }
+
+        res.json({
+            message: 'File uploaded successfully',
+            fileId: data.id,
+            filename: req.file.filename,
+            originalName: req.file.originalname,
+            companyName: company_name,
+            targetBranches: targetBranches
+        });
+    } catch (err) {
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        console.error('Upload process error:', err);
+        res.status(500).json({ error: 'Upload failed: ' + err.message });
+    }
+});
+
+// Helper: Standard Branches (Keep existing)
+
+// Helper: Branch Matching Logic (Keep existing)
+
 // Get files (Admin sees all with pending info, Students see relevant)
 app.get('/files', authenticateToken, async (req, res) => {
     try {
@@ -343,26 +395,44 @@ app.get('/files', authenticateToken, async (req, res) => {
         const { data: files, error: filesError } = await filesQuery.order('upload_date', { ascending: false });
         if (filesError) throw filesError;
 
-        // If Student, just return files
+        let filteredFiles = files;
+
+        // --- 4. FILTER FILES FOR STUDENTS BASED ON BRANCH ---
         if (req.user.role === 'student') {
-            return res.json(files.map(f => ({ ...f, uploaded_by_name: f.users?.username })));
+            const userBranch = req.user.branch;
+            filteredFiles = files.filter(f => {
+                // Return true if branch is 'ALL' OR if the list contains the user's branch
+                if (!f.branch || f.branch === 'ALL') return true;
+                const allowedBranches = f.branch.split(',');
+                return allowedBranches.includes(userBranch);
+            });
+
+            return res.json(filteredFiles.map(f => ({ ...f, uploaded_by_name: f.users?.username })));
         }
 
         // If Admin, calculate pending branches for each file
-        const filesWithPending = await Promise.all(files.map(async (file) => {
+        const filesWithPending = await Promise.all(filteredFiles.map(async (file) => {
             const { data: records, error: recordsError } = await supabase
                 .from('attendance_records')
                 .select('student_branch')
                 .eq('file_id', file.id);
 
             const submitted = records ? [...new Set(records.map(r => r.student_branch))] : [];
-            const pending = ALL_BRANCHES.filter(b => !submitted.includes(b));
+
+            // Determine expected branches
+            let expectedBranches = ALL_BRANCHES;
+            if (file.branch && file.branch !== 'ALL') {
+                expectedBranches = file.branch.split(',');
+            }
+
+            const pending = expectedBranches.filter(b => !submitted.includes(b));
 
             return {
                 ...file,
                 uploaded_by_name: file.users?.username,
                 pending_branches: pending,
-                submitted_branches: submitted
+                submitted_branches: submitted,
+                target_branches: file.branch
             };
         }));
 
@@ -373,23 +443,27 @@ app.get('/files', authenticateToken, async (req, res) => {
     }
 });
 
-// Get specific file details
+// Get specific file details (No changes needed usually, but good to check branch access)
 app.get('/files/:id', authenticateToken, async (req, res) => {
     const fileId = req.params.id;
 
     try {
         let query = supabase.from('files').select('*, users!uploaded_by(username)').eq('id', fileId);
-
-        // Students can only access files from their branch
-        if (req.user.role === 'student') {
-            query = query.eq('branch', req.user.branch);
-        }
-
         const { data: file, error } = await query.single();
 
         if (error) {
-            if (error.code === 'PGRST116') return res.status(404).json({ error: 'File not found or access denied' });
+            if (error.code === 'PGRST116') return res.status(404).json({ error: 'File not found' });
             throw error;
+        }
+
+        // Students can only access files from their branch
+        if (req.user.role === 'student') {
+            if (file.branch && file.branch !== 'ALL') {
+                const allowed = file.branch.split(',');
+                if (!allowed.includes(req.user.branch)) {
+                    return res.status(403).json({ error: 'Access denied: File not for your branch' });
+                }
+            }
         }
 
         res.json({ ...file, uploaded_by_name: file.users?.username });

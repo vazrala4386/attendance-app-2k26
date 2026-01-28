@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -27,31 +26,15 @@ class FileDetailScreen extends StatefulWidget {
 class _FileDetailScreenState extends State<FileDetailScreen> {
   bool _isLoading = false;
   Map<String, dynamic>? _reportData;
+  String _selectedBranch = 'All';
 
-  // View Report (Generate PDF)
-  Future<void> _viewReport() async {
-    setState(() => _isLoading = true);
-    try {
-      final token = Provider.of<AuthProvider>(context, listen: false).token!;
-      final data = await ApiService().getReportData(token, widget.file.id);
-      
-      setState(() {
-        _reportData = data;
-        _isLoading = false;
-      });
-
-      // Generate PDF
-      await _generateAndShowPdf(data);
-
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
+  List<Map<String, dynamic>> _getFilteredRecords(Map<String, dynamic> data) {
+    final records = (data['records'] as List).map((e) => e as Map<String, dynamic>).toList();
+    if (_selectedBranch == 'All') {
+      return records;
     }
+    return records.where((r) => r['student_branch'] == _selectedBranch).toList();
   }
-
-
 
   // Email Report
   Future<void> _emailReport() async {
@@ -75,6 +58,9 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
     );
 
     if (proceed == true && emailController.text.isNotEmpty) {
+      // Check mounted before using context / provider
+      if (!mounted) return;
+      
       setState(() => _isLoading = true);
       try {
         final token = Provider.of<AuthProvider>(context, listen: false).token!;
@@ -88,14 +74,18 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
 
         // Generate PDF bytes
         final pdf = pw.Document();
-        final records = (data!['records'] as List).map((e) => e as Map<String, dynamic>).toList();
+        
+        // Use non-null assertion only if necessary, but analysis says it's unnecessary here if flow analysis proves it.
+        // If data was null, we awaited fetch and set it. If fetch threw, we are in catch.
+        // So data must be non-null here.
+        final records = _getFilteredRecords(data);
         
         pdf.addPage(
            pw.MultiPage(
             pageFormat: PdfPageFormat.a4,
             build: (pw.Context context) {
               return [
-                pw.Header(level: 0, child: pw.Text('Attendance Report: ${widget.file.companyName}')),
+                pw.Header(level: 0, child: pw.Text('Attendance Report: ${widget.file.companyName} ($_selectedBranch)')),
                 pw.TableHelper.fromTextArray(
                   headers: ['Roll', 'Name', 'Branch', 'Status'],
                   data: records.map((r) => [
@@ -116,10 +106,10 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
         await ApiService().sendEmailWithPDF(
           token, 
           emailController.text.trim(), 
-          'Attendance Report: ${widget.file.companyName}', 
-          'Please find the attached attendance report.', 
+          'Attendance Report: ${widget.file.companyName} ($_selectedBranch)', 
+          'Please find the attached attendance report for $_selectedBranch candidates.', 
           base64Pdf, 
-          'Report_${widget.file.originalName}.pdf'
+          'Report_${widget.file.originalName}_$_selectedBranch.pdf'
         );
 
         if (mounted) {
@@ -155,6 +145,7 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
     );
 
     if (confirm == true) {
+      if (!mounted) return;
       setState(() => _isLoading = true);
       try {
         final token = Provider.of<AuthProvider>(context, listen: false).token!;
@@ -229,9 +220,28 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
   }
 
   Widget _buildOverviewTab(Map<String, dynamic> data, int presentCount, int absentCount) {
-    final total = presentCount + absentCount;
-    final presentPct = total == 0 ? 0 : (presentCount / total * 100).toStringAsFixed(1);
-    final absentPct = total == 0 ? 0 : (absentCount / total * 100).toStringAsFixed(1);
+    // Calculate total summary stats based on FULL data (overview shouldn't change with filter, unless user wants stats for filter)
+    // The requirement says "add an option branch to select ... to download".
+    // It doesn't explicitly say the stats cards check change 
+    // BUT typically if I select a branch I want to see its stats.
+    // Let's filter stats too?
+    // "add an option branch to select the specific branch attendance only to download that specified branch"
+    // It implies the primary purpose is download.
+    // However, updating stats is a nice touch.
+    
+    final records = (data['records'] as List).map((e) => e as Map<String, dynamic>).toList();
+    final branches = <String>{'All'};
+    for (var r in records) {
+      if (r['student_branch'] != null) branches.add(r['student_branch']);
+    }
+
+    final filteredRecords = _getFilteredRecords(data);
+    final fPresent = filteredRecords.where((r) => r['status'] == 'present').length;
+    final fAbsent = filteredRecords.where((r) => r['status'] == 'absent').length;
+    final fTotal = fPresent + fAbsent;
+    
+    final presentPct = fTotal == 0 ? 0 : (fPresent / fTotal * 100).toStringAsFixed(1);
+    final absentPct = fTotal == 0 ? 0 : (fAbsent / fTotal * 100).toStringAsFixed(1);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -241,17 +251,31 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
              padding: const EdgeInsets.all(16),
              child: Column(
                 children: [
-                  Text("Attendance Summary", style: Theme.of(context).textTheme.titleLarge),
+                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("Attendance Summary", style: Theme.of(context).textTheme.titleLarge),
+                      // Dropdown for Branch Selection
+                      DropdownButton<String>(
+                        value: _selectedBranch,
+                        items: branches.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedBranch = val);
+                        },
+                      ),
+                    ],
+                   ),
+                  
                   const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStatCircle("Present", presentCount, "$presentPct%", Colors.green),
-                      _buildStatCircle("Absent", absentCount, "$absentPct%", Colors.red),
+                      _buildStatCircle("Present", fPresent, "$presentPct%", Colors.green),
+                      _buildStatCircle("Absent", fAbsent, "$absentPct%", Colors.red),
                     ],
                   ),
                   const SizedBox(height: 20),
-                   Text("Total Students: $total", style: const TextStyle(fontWeight: FontWeight.bold)),
+                   Text("Total Students: $fTotal", style: const TextStyle(fontWeight: FontWeight.bold)),
                 ],
              ),
           ),
@@ -260,14 +284,14 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
         ElevatedButton.icon(
           onPressed: () => _generateAndShowPdf(data), 
           icon: const Icon(Icons.picture_as_pdf),
-          label: const Text('Download Detailed PDF Report'),
+          label: Text(_selectedBranch == 'All' ? 'Download Detailed PDF Report (All)' : 'Download PDF Report ($_selectedBranch)'),
           style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
         ),
         const SizedBox(height: 10),
         ElevatedButton.icon(
           onPressed: () => _exportToExcel(data), 
-          icon: const Icon(Icons.table_view), // Excel icon substitute
-          label: const Text('Download Excel Report'),
+          icon: const Icon(Icons.table_view), 
+          label: Text(_selectedBranch == 'All' ? 'Download Excel Report (All)' : 'Download Excel Report ($_selectedBranch)'),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.all(16),
             backgroundColor: Colors.green.shade700,
@@ -292,7 +316,9 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
               ),
             ).then((_) {
                // Refresh data when returning from modification
-               setState(() => _reportData = null); // Force reload
+               if (mounted) {
+                 setState(() => _reportData = null); // Force reload
+               }
             });
           },
           icon: const Icon(Icons.edit),
@@ -310,7 +336,7 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
   Future<void> _exportToExcel(Map<String, dynamic> data) async {
     setState(() => _isLoading = true);
     try {
-      final records = (data['records'] as List).map((e) => e as Map<String, dynamic>).toList();
+      final records = _getFilteredRecords(data);
       
       final excel = Excel.createExcel();
       final Sheet sheet = excel['Attendance Report'];
@@ -337,39 +363,22 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
       final fileBytes = excel.save();
       
       if (fileBytes != null) {
-        // Use file_picker to save? Or path_provider?
-        // Since we are likely on Mobile/Desktop, let's use a standard file saver approach 
-        // OR simply share/save to downloads.
-        // For simplicity and cross-platform compatibility without complex permission handling,
-        // we can try to save to Downloads or share it (if on mobile).
-        
-        // For now, let's look at saving to temporary directory and sharing/opening, 
-        // or just writing to downloads if possible.
-        
-        // However, printing package is for PDF.
-        // We can just dump it to a file.
+        String filename = 'Report_${widget.file.companyName}_$_selectedBranch.xlsx';
         
         String? outputFile = await FilePicker.platform.saveFile(
           dialogTitle: 'Save Excel Report',
-          fileName: 'Report_${widget.file.companyName}.xlsx',
+          fileName: filename,
           type: FileType.custom,
           allowedExtensions: ['xlsx'],
-          bytes: Uint8List.fromList(fileBytes), // FilePicker expects Uint8List? 
-          // Actually saveFile takes bytes? No, it takes output path usually or returns path.
-          // FilePicker.saveFile returns String? (path).
+          bytes: Uint8List.fromList(fileBytes), 
         );
 
         if (outputFile != null) {
-           // We need to write bytes to this path manually if saveFile doesn't do it automatically for bytes (it usually doesn't, it just gives path)
-           // WAIT: FilePicker.platform.saveFile just opens a dialog and returns a path. 
-           // We have to write the file ourselves.
-           
            final fileX = File(outputFile);
            await fileX.writeAsBytes(fileBytes);
            
            if (mounted) {
              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Excel saved to $outputFile')));
-             // Optionally open it?
            }
         }
       }
@@ -404,7 +413,7 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
     if (students.isEmpty) return const Center(child: Text("No students found."));
     return ListView.separated(
       itemCount: students.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (context, index) => const Divider(height: 1),
       itemBuilder: (ctx, i) {
         final s = students[i];
         return ListTile(
@@ -418,7 +427,7 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
 
   Future<void> _generateAndShowPdf(Map<String, dynamic> data) async {
     final pdf = pw.Document();
-    final records = (data['records'] as List).map((e) => e as Map<String, dynamic>).toList();
+    final records = _getFilteredRecords(data);
     
     // Split Data
     final present = records.where((r) => r['status'] == 'present').toList();
@@ -436,6 +445,7 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
               pw.Header(level: 0, child: pw.Text("Placement Attendance Report")),
               pw.SizedBox(height: 20),
               pw.Text("Company: ${widget.file.companyName}", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+              pw.Text("Branch: $_selectedBranch"),
               pw.Text("Date: ${widget.file.uploadDate.substring(0, 10)}"),
               pw.SizedBox(height: 40),
               pw.Row(
@@ -482,7 +492,7 @@ class _FileDetailScreenState extends State<FileDetailScreen> {
 
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'Report_${widget.file.companyName}.pdf',
+      name: 'Report_${widget.file.companyName}_$_selectedBranch.pdf',
     );
   }
 

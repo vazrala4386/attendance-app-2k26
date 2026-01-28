@@ -76,7 +76,12 @@ class _AttendanceMarkingScreenState extends State<AttendanceMarkingScreen> {
       });
     } catch (e) {
       if (mounted) {
-        Fluttertoast.showToast(msg: "Error loading data: $e");
+        // Extract inner message if possible
+        String msg = e.toString();
+        if (msg.contains('Exception: ')) {
+          msg = msg.split('Exception: ').last;
+        }
+        Fluttertoast.showToast(msg: "Error loading: $msg");
         Navigator.pop(context);
       }
     }
@@ -217,7 +222,7 @@ class _AttendanceMarkingScreenState extends State<AttendanceMarkingScreen> {
                               subtitle: Text('${student.roll} • ${student.mobile}'),
                               trailing: Switch(
                                 value: isPresent,
-                                activeColor: Colors.green,
+                                activeTrackColor: Colors.green,
                                 onChanged: (val) => _toggleStatus(student),
                               ),
                             );

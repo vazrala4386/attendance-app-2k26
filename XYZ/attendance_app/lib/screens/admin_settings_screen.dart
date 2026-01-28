@@ -71,22 +71,22 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       if (!mounted) return;
       bool hasSecret = await _securityService.isSecretKeySet();
       if (hasSecret) {
+         if (!mounted) return;
          authenticated = await _showSecretKeyDialog();
       } else {
+         if (!mounted) return;
          if (_isBiometricsRegistered) {
            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Face ID failed and no Secret Key set.')));
            return;
          } else {
-           // No security set up at all? Allow? Or Block?
-           // Ideally, block. But for now, let's warn.
            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please set up a Secret Key or Face ID first.')));
            return;
          }
       }
     }
 
+    if (!mounted) return;
     if (!authenticated) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Authentication failed or cancelled')),
       );
@@ -94,12 +94,10 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
     }
 
     // 2. If authenticated, show Change Password Dialog
-    if (!mounted) return;
     _showChangePasswordDialog();
   }
 
   Future<bool> _showSecretKeyDialog() async {
-    // ... (Same as before)
     final controller = TextEditingController();
     return await showDialog<bool>(
       context: context,
@@ -118,11 +116,21 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              // Capture scaffold messenger of parent context or dialog context? 
+              // Dialog context 'ctx' is valid until popped.
+              // However, showing snackbar on dialog context might be weird if looking for Scaffold.
+              // We should look up ScaffoldMessenger from 'ctx'.
+              final scaffold = ScaffoldMessenger.of(ctx);
+              final navigator = Navigator.of(ctx);
+              
               final isValid = await _securityService.verifySecretKey(controller.text);
+              
+              if (!ctx.mounted) return;
+              
               if (isValid) {
-                Navigator.pop(ctx, true);
+                navigator.pop(true);
               } else {
-                ScaffoldMessenger.of(ctx).showSnackBar(
+                scaffold.showSnackBar(
                    const SnackBar(content: Text('Invalid Secret Key')),
                 );
               }

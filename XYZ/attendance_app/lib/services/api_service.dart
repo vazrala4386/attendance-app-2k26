@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+// import 'dart:io'; 
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb hide User;
@@ -103,7 +103,7 @@ class ApiService {
     var response = await request.send();
     if (response.statusCode != 200) {
       final respStr = await response.stream.bytesToString();
-      print("SERVER ERROR BODY: $respStr"); // Log to console
+      // print("SERVER ERROR BODY: $respStr"); // Log to console
       try {
         final json = jsonDecode(respStr);
         throw Exception(json['error'] ?? 'Upload failed with status ${response.statusCode}');

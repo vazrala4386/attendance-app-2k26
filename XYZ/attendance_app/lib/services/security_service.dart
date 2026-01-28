@@ -18,7 +18,7 @@ class SecurityService {
         localizedReason: 'Verify your identity',
       );
     } catch (e) {
-      print('Biometric Error: $e');
+      // print('Biometric Error: $e');
       return false;
     }
   }

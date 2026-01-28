@@ -61,7 +61,9 @@ class _MainWrapperState extends State<MainWrapper> {
     super.initState();
     // Try to auto-login when app starts
     Future.delayed(Duration.zero, () {
-      Provider.of<AuthProvider>(context, listen: false).tryAutoLogin();
+      if (mounted) {
+        Provider.of<AuthProvider>(context, listen: false).tryAutoLogin();
+      }
     });
   }
 
